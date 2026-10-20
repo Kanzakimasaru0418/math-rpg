@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d0b1a" />
+    <meta name="description" content="数学の問題をといてモンスターをたおす、4分で遊べるRPG。小学生から大人まで。" />
+    <title>数学RPG 〜むげんの魔王〜</title>
+    <!-- DotGothic16：ドット絵っぽい日本語フォント（Google Fonts・無料で使えるOFLライセンス） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="game">
+      <!-- 3Dの画面はここ（main.js が canvas を入れる） -->
+      <div id="view"></div>
+
+      <!-- ===== プレイ中の情報（HUD：ヘッドアップディスプレイ） ===== -->
+      <div id="hud" class="hidden">
+        <div class="window status">
+          <div class="status-name">ゆうしゃ <span id="levelBadge"></span></div>
+          <div class="status-hp">HP <span id="hpText">100</span><span class="hp-max">/100</span></div>
+          <div class="bar"><div id="hpBar" class="bar-fill"></div></div>
+        </div>
+        <div class="window info">
+          <div>⏱ <span id="timeText">0:00.00</span></div>
+          <div>⚔ <span id="killText">0</span>/9</div>
+        </div>
+      </div>
+      <button id="muteBtn" class="icon-btn" aria-label="音のオン・オフ">♪</button>
+
+      <!-- ===== バトル ===== -->
+      <div id="enemyInfo" class="hidden">
+        <div id="enemyName"></div>
+        <div id="enemyHp"></div>
+      </div>
+      <div id="battle" class="hidden">
+        <div class="window question-window">
+          <div class="timer"><div id="timerBar" class="timer-fill"></div><span id="timerText"></span></div>
+          <div id="questionText"></div>
+        </div>
+        <div id="choices">
+          <button class="choice" data-i="0"></button>
+          <button class="choice" data-i="1"></button>
+          <button class="choice" data-i="2"></button>
+          <button class="choice" data-i="3"></button>
+        </div>
+      </div>
+      <div id="slash"></div>
+      <div id="popups"></div>
+
+      <!-- ===== メッセージ ===== -->
+      <div id="message" class="window hidden">
+        <div id="messageText"></div>
+        <div id="messageNext">▼</div>
+      </div>
+
+      <!-- ===== スマホ用の十字ボタン ===== -->
+      <div id="dpad" class="hidden">
+        <button data-dir="up" aria-label="うえ">▲</button>
+        <button data-dir="left" aria-label="ひだり">◀</button>
+        <button data-dir="right" aria-label="みぎ">▶</button>
+        <button data-dir="down" aria-label="した">▼</button>
+      </div>
+
+      <!-- ===== タイトル画面 ===== -->
+      <section id="title" class="screen">
+        <div class="title-box">
+          <p class="title-sub">〜 むげんの魔王と 12の問い 〜</p>
+          <h1 class="logo">数学<span>RPG</span></h1>
+          <p class="title-lead">むずかしさを えらんでね</p>
+          <div id="levelButtons" class="level-buttons"></div>
+          <div class="title-row">
+            <button id="rankingBtn" class="btn small">🏆 ランキング</button>
+            <button id="howBtn" class="btn small">❓ あそびかた</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="screen hidden">
+        <div class="window panel">
+          <h2>あそびかた</h2>
+          <ul class="how-list">
+            <li>矢印キー（スマホは十字ボタン）で歩こう</li>
+            <li>モンスターにぶつかると <b>バトル</b>！ 4つの答えから正しいものを選ぼう</li>
+            <li>答えは クリック・タップ、または <b>1〜4キー</b> でもOK</li>
+            <li>まちがえたり 時間切れになると HPが減る。0になったら ゲームオーバー</li>
+            <li>弱いモンスター5体 → 橋の結界が消える<br />ふつうのモンスター3体 → 遺跡の門が開く</li>
+            <li>魔王をたおして 宝箱をあけたら クリア！ タイムを競おう</li>
+          </ul>
+          <button class="btn back-btn">もどる</button>
+        </div>
+      </section>
+
+      <section id="rankingScreen" class="screen hidden">
+        <div class="window panel">
+          <h2>🏆 ランキング</h2>
+          <div id="rankTabs" class="tabs"></div>
+          <ol id="rankList" class="rank-list"></ol>
+          <p id="rankNote" class="note"></p>
+          <button class="btn back-btn">もどる</button>
+        </div>
+      </section>
+
+      <section id="gameover" class="screen hidden">
+        <div class="window panel center">
+          <h2 class="bad">ゆうしゃは たおれてしまった…</h2>
+          <p>でも だいじょうぶ。何度でも ちょうせんできるよ。</p>
+          <div class="title-row">
+            <button id="retryBtn" class="btn">もういちど</button>
+            <button class="btn to-title">タイトルへ</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="clear" class="screen hidden">
+        <div class="window panel center">
+          <h2 class="good">GAME CLEAR!</h2>
+          <p>むげんの魔王を たおし、宝箱を ひらいた！</p>
+          <p class="clear-time">クリアタイム <span id="clearTime"></span></p>
+          <p class="clear-sub" id="clearSub"></p>
+          <form id="nameForm" class="name-form">
+            <input id="nameInput" maxlength="8" placeholder="なまえ（8文字まで）" autocomplete="off" />
+            <button class="btn small" type="submit">とうろく</button>
+          </form>
+          <p id="nameError" class="note bad"></p>
+          <ol id="clearRank" class="rank-list"></ol>
+          <div class="title-row">
+            <button id="againBtn" class="btn">もういちど</button>
+            <button class="btn to-title">タイトルへ</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="fade"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
