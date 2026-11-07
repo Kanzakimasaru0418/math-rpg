@@ -259,7 +259,7 @@ export const PUCHI_COLORS = [
   { name: 'ミドリダマ', o: '#4cc25a', O: '#2a7f36', y: '#b8f0a0' },
   { name: 'アオダマ', o: '#3d8ef0', O: '#1f55a8', y: '#a8d4ff' },
   { name: 'モモダマ', o: '#f06aa8', O: '#a8326c', y: '#ffc4e0' },
-  { name: 'キンダマ', o: '#f0c834', O: '#a8861a', y: '#fff3a8' },
+  { name: 'コガネダマ', o: '#f0c834', O: '#a8861a', y: '#fff3a8' },
 ].map((c) => ({ name: c.name, palette: { ...BASE, ...c, m: '#7a1f2c' } }));
 
 export const BAT_COLORS = [
