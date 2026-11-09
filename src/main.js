@@ -3,9 +3,9 @@
 // =====================================================
 import './style.css';
 import * as THREE from 'three';
-import { World, START, tileToWorld } from './world.js';
+import { World, START, COLS, ROWS, tileToWorld } from './world.js';
 import { createComposer } from './post.js';
-import { makeQuestion, LEVELS } from './questions.js';
+import { makeQuestion, LEVELS, SCHOOLS } from './questions.js';
 import { initAudio, sfx, playBgm, stopBgm, toggleMute, isMuted } from './audio.js';
 import { fetchRanking, submitRanking, checkName, formatTime } from './ranking.js';
 
@@ -27,9 +27,11 @@ const ui = {
   enemyInfo: $('enemyInfo'), enemyName: $('enemyName'), enemyHp: $('enemyHp'),
   battle: $('battle'), question: $('questionText'), timerBar: $('timerBar'), timerText: $('timerText'),
   choices: [...document.querySelectorAll('.choice')],
-  message: $('message'), messageText: $('messageText'), messageNext: $('messageNext'),
+  message: $('message'), messageText: $('messageText'), messageNext: $('messageNext'), messageHead: $('messageHead'),
   dpad: $('dpad'), slash: $('slash'), popups: $('popups'), fade: $('fade'),
-  screens: { title: $('title'), how: $('how'), ranking: $('rankingScreen'), gameover: $('gameover'), clear: $('clear') },
+  screens: {
+    title: $('title'), grade: $('grade'), how: $('how'), ranking: $('rankingScreen'), gameover: $('gameover'), clear: $('clear'),
+  },
 };
 
 // ===== 3Dの準備 =====
@@ -64,7 +66,9 @@ onResize();
 // ===== ゲームの状態（ステート） =====
 const state = {
   mode: 'title', // title / field / busy（演出中）/ battle / end
-  level: 'elementary',
+  level: 'e1',
+  path: [], // クリックで歩くときの道順
+  missed: [], // まちがえた問題（ふりかえり用）
   hp: RULES.maxHp,
   kills: 0,
   startTime: 0,
@@ -98,9 +102,16 @@ let keyHandler = null; // メッセージやバトル中にキーを受け取る
 
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
+  // タイトルなどの画面が出ているときは、矢印キーでボタンをえらぶ
+  if (!keyHandler && activeScreen()) {
+    if (state.mode === 'busy') return; // 画面を切りかえている途中
+    menuKey(e);
+    return;
+  }
   if (KEY_DIR[e.key]) {
     held.add(KEY_DIR[e.key]);
     if (!e.repeat) tapped = KEY_DIR[e.key];
+    state.path = []; // キーで歩きはじめたら、クリックの道順はやめる
     e.preventDefault();
   }
   if (keyHandler) keyHandler(e);
@@ -112,6 +123,39 @@ addEventListener('blur', () => held.clear());
 function clearInput() {
   held.clear();
   tapped = null;
+  state.path = [];
+  marker.visible = false;
+}
+
+// ----- 画面（タイトルなど）をキーボードで操作する -----
+function activeScreen() {
+  return Object.values(ui.screens).find((el) => !el.classList.contains('hidden')) || null;
+}
+function focusables(screen) {
+  return [...screen.querySelectorAll('button, input, summary')].filter((el) => el.offsetParent !== null && !el.disabled);
+}
+function menuKey(e) {
+  const screen = activeScreen();
+  const list = focusables(screen);
+  if (list.length === 0) return;
+  const i = list.indexOf(document.activeElement);
+  if (['ArrowDown', 'ArrowRight'].includes(e.key)) {
+    e.preventDefault();
+    list[(i + 1) % list.length].focus();
+    sfx.select();
+  } else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
+    e.preventDefault();
+    list[(i - 1 + list.length) % list.length].focus();
+    sfx.select();
+  } else if (e.key === 'Escape') {
+    const back = screen.querySelector('.back-btn, .to-title');
+    if (back) back.click();
+  } else if ((e.key === 'Enter' || e.key === ' ') && i < 0) {
+    // まだ何もえらんでいなければ、その画面のいちばん大事なボタンをえらぶ
+    e.preventDefault();
+    const name = Object.keys(ui.screens).find((k) => ui.screens[k] === screen);
+    (screenDefault[name] || list[0]).focus();
+  }
 }
 
 // 十字ボタン（おしっぱなしで歩きつづける）
@@ -152,8 +196,16 @@ muteBtn.addEventListener('click', () => {
 // =====================================================
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function showScreen(name) {
+const screenDefault = {}; // 画面ごとに「Enterでえらばれるボタン」
+function showScreen(name, focusEl) {
   for (const [key, el] of Object.entries(ui.screens)) el.classList.toggle('hidden', key !== name);
+  if (!name) return;
+  screenDefault[name] = focusEl || null;
+  // キーボードだけでも操作できるように、最初のボタンをえらんでおく
+  requestAnimationFrame(() => {
+    const target = focusEl || focusables(ui.screens[name])[0];
+    target?.focus({ preventScroll: true });
+  });
 }
 
 async function fadeOut() {
@@ -165,12 +217,14 @@ function fadeIn() {
 }
 
 // メッセージを1文字ずつ表示する。wait=true なら決定キーかタップでつぎへ
-function say(text, { wait: needTap = true, auto = 0, top = false } = {}) {
+function say(text, { wait: needTap = true, auto = 0, top = false, head = '' } = {}) {
   return new Promise((resolve) => {
     ui.message.classList.remove('hidden');
     ui.message.classList.toggle('top', top);
     ui.messageNext.classList.add('hidden');
     ui.messageText.textContent = '';
+    ui.messageHead.textContent = head;
+    ui.messageHead.classList.toggle('hidden', !head);
     const chars = [...text];
     let i = 0;
     let done = false;
@@ -191,7 +245,7 @@ function say(text, { wait: needTap = true, auto = 0, top = false } = {}) {
     }
     function close() {
       keyHandler = null;
-      ui.message.removeEventListener('pointerdown', onTap);
+      removeEventListener('pointerdown', onTap);
       ui.message.classList.add('hidden');
       resolve();
     }
@@ -203,12 +257,18 @@ function say(text, { wait: needTap = true, auto = 0, top = false } = {}) {
       }
     }
     function onTap(e) {
+      if (e.target.closest('#muteBtn')) return; // 音ボタンは別
       e.preventDefault();
       next();
     }
-    ui.message.addEventListener('pointerdown', onTap);
+    // 画面のどこをクリック・タップしても、つぎへ進める
+    setTimeout(() => addEventListener('pointerdown', onTap), 0);
     keyHandler = (e) => {
-      if (['Enter', ' ', 'z', 'Z'].includes(e.key)) next();
+      if (e.repeat) return; // おしっぱなしで一気に読み飛ばさないように
+      if (['Enter', ' ', 'z', 'Z'].includes(e.key)) {
+        e.preventDefault();
+        next();
+      }
     };
   });
 }
@@ -254,6 +314,128 @@ function flash(color, strength, ms) {
 }
 
 // =====================================================
+// 学年に合わせた制限時間・解説・ふりかえり
+// =====================================================
+function timeLimit(base) {
+  return Math.round(base * (LEVELS[state.level].time || 1));
+}
+
+// まちがえたときの解説
+async function explain(q) {
+  if (!q.explain) return;
+  await say(q.explain, { head: '📘 かいせつ' });
+}
+
+// まちがえた問題の一覧（タップ・Enter で解説がひらく）
+function renderReview(el) {
+  el.innerHTML = '';
+  const h = document.createElement('h3');
+  if (state.missed.length === 0) {
+    h.textContent = 'まちがえた問題は ありませんでした！ すごい！';
+    el.appendChild(h);
+    return;
+  }
+  h.textContent = `📘 ふりかえり（まちがえた問題 ${state.missed.length}問）`;
+  el.appendChild(h);
+  for (const m of state.missed) {
+    const d = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.textContent = m.text.replace(/\n/g, ' ');
+    const ans = document.createElement('div');
+    ans.innerHTML = '正解：<span class="ans"></span>　<span class="mine"></span>';
+    ans.querySelector('.ans').textContent = m.answer;
+    ans.querySelector('.mine').textContent = `（あなたの答え：${m.mine}）`;
+    const exp = document.createElement('div');
+    exp.className = 'exp';
+    exp.textContent = m.explain;
+    d.append(sum, ans, exp);
+    el.appendChild(d);
+  }
+}
+
+// =====================================================
+// クリック・タップで歩く
+// =====================================================
+// 行き先の目印（地面の光る輪）
+const marker = new THREE.Mesh(
+  new THREE.RingGeometry(0.28, 0.4, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffe680, transparent: true, opacity: 0.8, depthWrite: false })
+);
+marker.rotation.x = -Math.PI / 2;
+marker.visible = false;
+scene.add(marker);
+
+const raycaster = new THREE.Raycaster();
+const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+// 画面の位置 → マス目
+function screenToTile(x, y) {
+  const ndc = new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(ground, hit)) return null;
+  return { col: Math.round(hit.x + COLS / 2 - 0.5), row: Math.round(hit.z + ROWS / 2 - 0.5) };
+}
+
+// そのマスに「歩いて入れる」か
+function canStand(col, row) {
+  return world.isWalkableTerrain(col, row) && !world.enemyAt(col, row) && !world.barrierAt(col, row) && !world.chestAt(col, row);
+}
+// 敵・宝箱・結界のように「ぶつかると何かが起きる」マスか
+function isTarget(col, row) {
+  return !!(world.enemyAt(col, row) || world.chestAt(col, row) || world.barrierAt(col, row));
+}
+
+// 幅優先探索（はばゆうせんたんさく：近いマスから順に調べて、いちばん短い道を見つける方法）
+function findPath(from, to) {
+  const key = (c, r) => r * COLS + c;
+  const prev = new Map([[key(from.col, from.row), null]]);
+  const queue = [from];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const [dir, [dx, dy]] of Object.entries(DIRS)) {
+      const c = cur.col + dx;
+      const r = cur.row + dy;
+      const k = key(c, r);
+      if (prev.has(k)) continue;
+      const reached = c === to.col && r === to.row;
+      if (!reached && !canStand(c, r)) continue;
+      prev.set(k, { from: cur, dir });
+      if (reached) {
+        // ゴールから逆にたどって、道順（方向のならび）を作る
+        const path = [];
+        let k2 = k;
+        while (prev.get(k2)) {
+          const p = prev.get(k2);
+          path.unshift(p.dir);
+          k2 = key(p.from.col, p.from.row);
+        }
+        return path;
+      }
+      queue.push({ col: c, row: r });
+    }
+  }
+  return null;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (state.mode !== 'field') return;
+  const t = screenToTile(e.clientX, e.clientY);
+  if (!t) return;
+  if (!canStand(t.col, t.row) && !isTarget(t.col, t.row)) {
+    sfx.bump();
+    return;
+  }
+  const path = findPath({ col: state.col, row: state.row }, t);
+  if (!path || path.length === 0) return;
+  state.path = path;
+  const p = tileToWorld(t.col, t.row);
+  marker.position.set(p.x, world.groundY(t.col, t.row) + 0.04, p.z);
+  marker.visible = !isTarget(t.col, t.row);
+  sfx.select();
+});
+
+// =====================================================
 // HUD（HP・時間・たおした数）
 // =====================================================
 function updateHud() {
@@ -269,17 +451,40 @@ function updateHud() {
 // タイトル画面
 // =====================================================
 const levelBox = $('levelButtons');
-for (const [key, info] of Object.entries(LEVELS)) {
+const SCHOOL_SUB = { elementary: '小学1年〜6年', middle: '中学1年〜3年', high: '数学Ⅰ・A／Ⅱ・B', adult: '小〜高 ぜんぶから出題' };
+for (const school of SCHOOLS) {
   const b = document.createElement('button');
   b.className = 'btn level-btn';
-  b.innerHTML = `<b>${info.label}</b><small>${info.sub}</small>`;
+  b.innerHTML = `<b>${school.label}</b><small>${SCHOOL_SUB[school.key]}</small>`;
   b.addEventListener('click', () => {
     initAudio();
     sfx.confirm();
-    startGame(key);
+    if (school.grades.length === 1) startGame(school.grades[0].key);
+    else openGrades(school);
   });
   levelBox.appendChild(b);
 }
+
+// 学年をえらぶ画面
+function openGrades(school) {
+  $('gradeTitle').textContent = `${school.label}：学年を えらんでね`;
+  const box = $('gradeButtons');
+  box.innerHTML = '';
+  for (const g of school.grades) {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.innerHTML = `<b>${g.label}</b><small>${g.sub}</small>`;
+    b.addEventListener('click', () => {
+      sfx.confirm();
+      startGame(g.key);
+    });
+    box.appendChild(b);
+  }
+  showScreen('grade');
+}
+
+// 「小学3年」→「小3」のような短い名前
+const shortLabel = (key) => LEVELS[key].label.replace(/^(小|中|高)(学|校)(\d)年$/, '$1$3');
 $('howBtn').addEventListener('click', () => {
   initAudio();
   sfx.select();
@@ -288,7 +493,7 @@ $('howBtn').addEventListener('click', () => {
 $('rankingBtn').addEventListener('click', () => {
   initAudio();
   sfx.select();
-  openRanking('elementary');
+  openRanking(state.level);
 });
 document.querySelectorAll('.back-btn').forEach((b) =>
   b.addEventListener('click', () => {
@@ -301,6 +506,9 @@ $('retryBtn').addEventListener('click', () => startGame(state.level));
 $('againBtn').addEventListener('click', () => startGame(state.level));
 
 async function goTitle() {
+  if (state.mode !== 'end') return;
+  state.mode = 'busy';
+  document.activeElement?.blur();
   sfx.select();
   await fadeOut();
   state.mode = 'title';
@@ -316,9 +524,9 @@ async function goTitle() {
 
 // ランキング画面
 const rankTabs = $('rankTabs');
-for (const [key, info] of Object.entries(LEVELS)) {
+for (const key of Object.keys(LEVELS)) {
   const b = document.createElement('button');
-  b.textContent = info.label;
+  b.textContent = shortLabel(key);
   b.dataset.level = key;
   b.addEventListener('click', () => openRanking(key));
   rankTabs.appendChild(b);
@@ -369,16 +577,21 @@ function setHeroFrame(dir, frame) {
 }
 
 async function startGame(level) {
+  // ボタンの連打で2回スタートしないようにする
+  if (!['title', 'end'].includes(state.mode)) return;
+  state.mode = 'busy';
+  document.activeElement?.blur();
   await fadeOut();
   state.level = level;
   state.hp = RULES.maxHp;
   state.kills = 0;
   state.moving = false;
+  state.missed = [];
   clearInput();
   world.reset();
   setBattleView(false);
   placeHero(START.col, START.row);
-  ui.levelBadge.textContent = `【${LEVELS[level].label}】`;
+  ui.levelBadge.textContent = `【${shortLabel(level)}】`;
   updateHud();
   showScreen(null);
   document.body.classList.add('playing');
@@ -393,8 +606,8 @@ async function startGame(level) {
   await say('ここは かずの森。\n森のおくの遺跡に 「むげんの魔王」が いるらしい…', { wait: true });
   await say(
     touchUsed
-      ? '十字ボタンで 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
-      : '矢印キーで 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
+      ? '十字ボタンか、地面を タップして 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
+      : '矢印キーか、地面を クリックして 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
   );
   state.mode = 'field';
   showDpad(true);
@@ -407,8 +620,10 @@ const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
 function tryMove() {
   if (state.mode !== 'field' || state.moving) return;
-  const dir = tapped || ['up', 'down', 'left', 'right'].find((d) => held.has(d));
+  let dir = tapped || ['up', 'down', 'left', 'right'].find((d) => held.has(d));
   tapped = null;
+  if (!dir && state.path.length > 0) dir = state.path.shift(); // クリックした場所へ向かう
+  if (state.path.length === 0) marker.visible = false;
   if (!dir) return;
   const [dx, dy] = DIRS[dir];
   const nc = state.col + dx;
@@ -499,7 +714,7 @@ async function startBattle(enemy) {
   // 問題をくりかえす
   while (enemy.hp > 0) {
     const q = makeQuestion(state.level, rule.tier);
-    const result = await askQuestion(q, rule.time);
+    const result = await askQuestion(q, timeLimit(rule.time));
     if (result.ok) {
       await heroAttack(enemy);
       enemy.hp--;
@@ -566,16 +781,17 @@ function askQuestion(q, limitSec) {
   return new Promise((resolve) => {
     ui.battle.classList.remove('hidden');
     ui.question.textContent = q.text;
-    let cursor = 0;
+    let cursor = -1; // -1 ＝ まだ何もえらんでいない（Enterだけでは答えにならない）
     let answered = false;
+    const shownAt = performance.now();
     ui.choices.forEach((b, i) => {
       b.textContent = q.choices[i];
       b.dataset.key = i + 1;
       b.className = 'choice';
       b.onclick = () => choose(i);
-      b.onpointerenter = () => moveCursor(i);
+      b.onpointerenter = (e) => e.pointerType === 'mouse' && moveCursor(i);
     });
-    moveCursor(0);
+    ui.choices.forEach((b) => b.classList.remove('cursor'));
 
     function moveCursor(i) {
       if (answered) return;
@@ -603,10 +819,12 @@ function askQuestion(q, limitSec) {
     tick();
 
     keyHandler = (e) => {
+      // 問題が出た直後のキー（メッセージ送りのEnterなど）と、おしっぱなしは無視する
+      if (e.repeat || performance.now() - shownAt < 350) return;
       if (['1', '2', '3', '4'].includes(e.key)) choose(Number(e.key) - 1);
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') moveCursor(cursor ^ 1);
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') moveCursor(cursor ^ 2);
-      else if (e.key === 'Enter' || e.key === ' ') choose(cursor);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') moveCursor(cursor < 0 ? 0 : cursor ^ 1);
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') moveCursor(cursor < 0 ? 0 : cursor ^ 2);
+      else if ((e.key === 'Enter' || e.key === ' ') && cursor >= 0) choose(cursor);
     };
 
     function choose(i) {
@@ -617,6 +835,7 @@ function askQuestion(q, limitSec) {
       answered = true;
       keyHandler = null;
       const ok = i === q.correctIndex;
+      if (!ok) state.missed.push({ ...q, mine: i >= 0 ? q.choices[i] : '時間切れ' });
       ui.choices.forEach((b) => {
         b.onclick = null;
         b.onpointerenter = null;
@@ -674,7 +893,8 @@ async function enemyAttack(enemy, damage, result, q) {
   updateHud();
   popupAt(`-${damage}`, innerWidth / 2, innerHeight * 0.3, '#ff8080');
   const why = result.timeout ? '時間切れ！' : 'ざんねん！';
-  await say(`${why} 正解は「${q.choices[q.correctIndex]}」。\nゆうしゃは ${damage} の ダメージを うけた！`, { wait: true });
+  await say(`${why} 正解は「${q.answer}」。\nゆうしゃは ${damage} の ダメージを うけた！`, { wait: true });
+  await explain(q);
   return state.hp > 0;
 }
 
@@ -716,7 +936,7 @@ async function openChest() {
   const rule = RULES.chest;
   for (;;) {
     const q = makeQuestion(state.level, rule.tier);
-    const result = await askQuestion(q, rule.time);
+    const result = await askQuestion(q, timeLimit(rule.time));
     if (result.ok) break;
     sfx.hurt();
     flash('#ff2030', 0.4, 400);
@@ -724,7 +944,8 @@ async function openChest() {
     state.hp = Math.max(0, state.hp - rule.damage);
     updateHud();
     popupAt(`-${rule.damage}`, innerWidth / 2, innerHeight * 0.3, '#ff8080');
-    await say(`${result.timeout ? '時間切れ！' : 'ざんねん！'} 正解は「${q.choices[q.correctIndex]}」。\n宝箱の わなで ${rule.damage} の ダメージ！`);
+    await say(`${result.timeout ? '時間切れ！' : 'ざんねん！'} 正解は「${q.answer}」。\n宝箱の わなで ${rule.damage} の ダメージ！`);
+    await explain(q);
     if (state.hp <= 0) return gameOver();
   }
 
@@ -752,7 +973,8 @@ async function gameOver() {
   setBattleView(false);
   state.battleEnemy = null;
   await wait(300);
-  showScreen('gameover');
+  renderReview($('reviewGameover'));
+  showScreen('gameover', $('retryBtn'));
 }
 
 let lastRecord = null;
@@ -762,13 +984,14 @@ function showClear() {
   state.battleEnemy = null;
   const time = state.endTime - state.startTime;
   $('clearTime').textContent = formatTime(time);
-  $('clearSub').textContent = `${LEVELS[state.level].label}モード ・ のこりHP ${state.hp}`;
+  $('clearSub').textContent = `${LEVELS[state.level].label} ・ のこりHP ${state.hp} ・ まちがい ${state.missed.length}問`;
+  renderReview($('reviewClear'));
   $('nameError').textContent = '';
   $('nameForm').classList.remove('hidden');
   $('nameInput').value = '';
   $('clearRank').innerHTML = '';
   lastRecord = { level: state.level, time: Math.round(time) };
-  showScreen('clear');
+  showScreen('clear', $('nameInput'));
   fetchRanking(state.level).then(({ list }) => renderRank($('clearRank'), list));
 }
 
@@ -792,6 +1015,7 @@ $('nameForm').addEventListener('submit', async (e) => {
   renderRank($('clearRank'), list, rec);
   $('nameError').classList.remove('bad');
   $('nameError').textContent = online ? '世界ランキングに とうろくしたよ！' : 'このブラウザに 記録したよ！';
+  $('againBtn').focus();
 });
 
 // =====================================================
@@ -850,6 +1074,8 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   tryMove();
+  renderer.domElement.classList.toggle('walkable', state.mode === 'field');
+  marker.material.opacity = 0.55 + Math.sin(t * 6) * 0.25;
   updateCamera(t, dt);
   world.update(t, dt, camera);
   if (['field', 'busy'].includes(state.mode) && state.startTime) {
@@ -862,4 +1088,4 @@ showScreen('title');
 loop();
 
 // 開発中（npm run dev）だけ使えるテスト用の道具。公開版には入らない
-if (import.meta.env.DEV) window.__debug = { state, world, placeHero };
+if (import.meta.env.DEV) window.__debug = { state, world, placeHero, camera, tileToWorld };

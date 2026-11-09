@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0d0b1a" />
     <meta name="description" content="数学の問題をといてモンスターをたおす、4分で遊べるRPG。小学生から大人まで。" />
-    <title>数学RPG 〜第60回高専祭用〜</title>
+    <title>数学RPG 〜むげんの魔王〜</title>
     <!-- DotGothic16：ドット絵っぽい日本語フォント（Google Fonts・無料で使えるOFLライセンス） -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -46,12 +46,14 @@
           <button class="choice" data-i="2"></button>
           <button class="choice" data-i="3"></button>
         </div>
+        <p id="choiceHint" class="choice-hint">1〜4キー、または クリック・タップで こたえる</p>
       </div>
       <div id="slash"></div>
       <div id="popups"></div>
 
       <!-- ===== メッセージ ===== -->
       <div id="message" class="window hidden">
+        <div id="messageHead" class="explain-head hidden"></div>
         <div id="messageText"></div>
         <div id="messageNext">▼</div>
       </div>
@@ -69,12 +71,22 @@
         <div class="title-box">
           <p class="title-sub">〜 むげんの魔王と 12の問い 〜</p>
           <h1 class="logo">数学<span>RPG</span></h1>
-          <p class="title-lead">むずかしさを えらんでね</p>
+          <p class="title-lead">学校を えらんでね</p>
           <div id="levelButtons" class="level-buttons"></div>
           <div class="title-row">
             <button id="rankingBtn" class="btn small">🏆 ランキング</button>
             <button id="howBtn" class="btn small">❓ あそびかた</button>
           </div>
+          <p class="key-hint">矢印キーで えらんで Enterキーで けってい</p>
+        </div>
+      </section>
+
+      <!-- 学年をえらぶ画面 -->
+      <section id="grade" class="screen hidden">
+        <div class="window panel center">
+          <h2 id="gradeTitle">学年を えらんでね</h2>
+          <div id="gradeButtons" class="grade-buttons"></div>
+          <button class="btn small back-btn">もどる</button>
         </div>
       </section>
 
@@ -82,10 +94,11 @@
         <div class="window panel">
           <h2>あそびかた</h2>
           <ul class="how-list">
-            <li>矢印キー（スマホは十字ボタン）で歩こう</li>
+            <li>矢印キー（スマホは十字ボタン）で歩こう。<b>地面をクリック・タップ</b>しても、そこまで歩くよ</li>
             <li>モンスターにぶつかると <b>バトル</b>！ 4つの答えから正しいものを選ぼう</li>
-            <li>答えは クリック・タップ、または <b>1〜4キー</b> でもOK</li>
+            <li>答えは <b>1〜4キー</b>、または クリック・タップ。矢印キーで選んで Enter でもOK</li>
             <li>まちがえたり 時間切れになると HPが減る。0になったら ゲームオーバー</li>
+            <li>まちがえたときは <b>かいせつ</b> が出るよ。さいごに まちがえた問題を ふりかえれる</li>
             <li>弱いモンスター5体 → 橋の結界が消える<br />ふつうのモンスター3体 → 遺跡の門が開く</li>
             <li>魔王をたおして 宝箱をあけたら クリア！ タイムを競おう</li>
           </ul>
@@ -106,7 +119,8 @@
       <section id="gameover" class="screen hidden">
         <div class="window panel center">
           <h2 class="bad">ゆうしゃは たおれてしまった…</h2>
-          <p>ゲームオーバー。残念無念また来年！<br>次の人と交代してね</p>
+          <p>でも だいじょうぶ。何度でも ちょうせんできるよ。</p>
+          <div id="reviewGameover" class="review"></div>
           <div class="title-row">
             <button id="retryBtn" class="btn">もういちど</button>
             <button class="btn to-title">タイトルへ</button>
@@ -126,6 +140,7 @@
           </form>
           <p id="nameError" class="note bad"></p>
           <ol id="clearRank" class="rank-list"></ol>
+          <div id="reviewClear" class="review"></div>
           <div class="title-row">
             <button id="againBtn" class="btn">もういちど</button>
             <button class="btn to-title">タイトルへ</button>

@@ -620,3 +620,85 @@ body.playing .icon-btn {
 #fade.on {
   opacity: 1;
 }
+
+/* ---------- 追加：操作のヒント・学年ボタン・ふりかえり ---------- */
+.choice-hint,
+.key-hint {
+  margin: 0.4em 0 0;
+  text-align: center;
+  font-size: 0.7em;
+  color: #cfd3ff;
+  text-shadow: 0 1px 0 #000;
+}
+@media (pointer: coarse) {
+  .key-hint,
+  .choice-hint {
+    display: none;
+  }
+}
+.grade-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+  gap: 0.6em;
+  margin-bottom: 0.9em;
+}
+.grade-buttons .btn {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+.grade-buttons small {
+  font-size: 0.7em;
+  color: #cfd3ff;
+}
+.btn:focus-visible {
+  background: rgba(60, 50, 10, 0.9);
+}
+.review {
+  text-align: left;
+  margin: 0.6em 0;
+}
+.review h3 {
+  font-weight: normal;
+  font-size: 1em;
+  color: var(--gold);
+  margin: 0.4em 0;
+  text-align: center;
+}
+.review details {
+  border: 2px solid #555;
+  border-radius: 6px;
+  padding: 0.3em 0.6em;
+  margin: 0.35em 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+.review summary {
+  cursor: pointer;
+  white-space: pre-line;
+  font-size: 0.9em;
+}
+.review summary:focus-visible {
+  outline: 2px solid var(--gold);
+}
+.review .ans {
+  color: var(--good);
+}
+.review .mine {
+  color: var(--bad);
+  font-size: 0.85em;
+}
+.review .exp {
+  white-space: pre-line;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: #e8e8ff;
+  margin: 0.4em 0 0.2em;
+}
+#message .explain-head {
+  color: var(--gold);
+}
+/* クリックで歩くときの目印 */
+#view canvas.walkable {
+  cursor: pointer;
+}

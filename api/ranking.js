@@ -8,7 +8,7 @@
 
 const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-const LEVELS = ['elementary', 'middle', 'high', 'adult'];
+const LEVELS = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'm1', 'm2', 'm3', 'h1', 'h2', 'adult'];
 const NG_WORDS = ['しね', '死ね', '殺', 'ころす', 'fuck', 'shit', 'bitch', 'sex', 'ちんこ', 'まんこ', 'ちんぽ', 'kill'];
 
 // データベースに命令を送る
