@@ -8,6 +8,7 @@ import { createComposer } from './post.js';
 import { makeQuestion, LEVELS, SCHOOLS } from './questions.js';
 import { initAudio, sfx, playBgm, stopBgm, toggleMute, isMuted } from './audio.js';
 import { fetchRanking, submitRanking, checkName, formatTime } from './ranking.js';
+import { makeResultImage, shareToX, saveImage, canShareImage, shareImage } from './share.js';
 
 // ===== ゲームのルール（仕様で決めた数字） =====
 const RULES = {
@@ -37,6 +38,7 @@ const ui = {
 // ===== 3Dの準備 =====
 const isMobile = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+// ※ 結果カード用の写真は、描いた直後に toDataURL で取るので preserveDrawingBuffer はいらない
 renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -958,8 +960,93 @@ async function openChest() {
   world.burst(world.chest.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xffe070, 140, 4.5);
   world.chest.userData.light.intensity = 5;
   playBgm('clear');
+  await wait(500);
+  makeResult(true); // 宝箱がひらいた瞬間を写真にする
   await say('宝箱が ひらいた！\n中には 「むげんの方程式」が 入っていた！');
   showClear();
+}
+
+// =====================================================
+// 結果のシェア（X・画像保存）
+// =====================================================
+let result = null; // さいごの結果 { cleared, gradeLabel, time, hp, missed, kills, scene }
+
+// 今の3Dの画面を写真にする
+function captureScene() {
+  // 写真をとる一瞬だけ、フラッシュとぼかしを弱くして、くっきり写す
+  const blur = fx.blur;
+  fx.blur = 0.7;
+  fx.apply(renderer.domElement.width, renderer.domElement.height);
+  fx.flash(new THREE.Color('#ffffff'), 0);
+  fx.composer.render();
+  let url = null;
+  try {
+    url = renderer.domElement.toDataURL('image/jpeg', 0.9);
+  } catch {
+    url = null;
+  }
+  fx.blur = blur;
+  fx.apply(renderer.domElement.width, renderer.domElement.height);
+  return url;
+}
+
+function makeResult(cleared) {
+  const end = cleared ? state.endTime : performance.now();
+  result = {
+    cleared,
+    gradeLabel: LEVELS[state.level].label,
+    time: formatTime(end - state.startTime),
+    hp: state.hp,
+    missed: state.missed.length,
+    kills: state.kills,
+    url: location.origin + '/',
+    scene: captureScene(),
+  };
+  result.imagePromise = null; // 画像は、ボタンが押されてから作る
+}
+
+function shareText(r) {
+  return r.cleared
+    ? `数学RPG【${r.gradeLabel}】をクリア！\nクリアタイム ${r.time}／まちがい ${r.missed}問${r.missed === 0 ? '（ノーミス！）' : ''}\nきみは魔王をたおせるかな？`
+    : `数学RPG【${r.gradeLabel}】で ${r.kills}体のモンスターをたおした！\nつぎこそ 魔王をたおすぞ…！`;
+}
+
+function resultImage() {
+  if (!result.imagePromise) result.imagePromise = makeResultImage(result.scene, result);
+  return result.imagePromise;
+}
+const fileName = () => `mathrpg-${result.cleared ? 'clear' : 'result'}-${Date.now()}.png`;
+
+document.querySelectorAll('.share-x').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (!result) return;
+    sfx.confirm();
+    shareToX(shareText(result), result.url);
+  })
+);
+document.querySelectorAll('.share-save').forEach((b) =>
+  b.addEventListener('click', async () => {
+    if (!result) return;
+    sfx.confirm();
+    const note = b.closest('.panel').querySelector('.share-note');
+    note.textContent = '画像を つくっています…';
+    const blob = await resultImage();
+    saveImage(blob, fileName());
+    note.textContent = '画像を 保存したよ！（ダウンロードフォルダを 見てね）';
+  })
+);
+const imageShareOk = canShareImage();
+document.querySelectorAll('.share-img').forEach((b) => {
+  b.classList.toggle('hidden', !imageShareOk); // スマホなど、使えるときだけ出す
+  b.addEventListener('click', async () => {
+    if (!result) return;
+    sfx.confirm();
+    const blob = await resultImage();
+    await shareImage(blob, fileName(), shareText(result) + '\n' + result.url);
+  });
+});
+function resetShareNotes() {
+  document.querySelectorAll('.share-note').forEach((n) => (n.textContent = ''));
 }
 
 // =====================================================
@@ -973,6 +1060,8 @@ async function gameOver() {
   setBattleView(false);
   state.battleEnemy = null;
   await wait(300);
+  makeResult(false);
+  resetShareNotes();
   renderReview($('reviewGameover'));
   showScreen('gameover', $('retryBtn'));
 }
@@ -983,6 +1072,7 @@ function showClear() {
   setBattleView(false);
   state.battleEnemy = null;
   const time = state.endTime - state.startTime;
+  resetShareNotes();
   $('clearTime').textContent = formatTime(time);
   $('clearSub').textContent = `${LEVELS[state.level].label} ・ のこりHP ${state.hp} ・ まちがい ${state.missed.length}問`;
   renderReview($('reviewClear'));

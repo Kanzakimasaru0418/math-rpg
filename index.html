@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0d0b1a" />
     <meta name="description" content="数学の問題をといてモンスターをたおす、4分で遊べるRPG。小学生から大人まで。" />
-    <title>数学RPG 〜むげんの魔王〜</title>
+    <title>数学RPG 〜第60回高専祭用〜</title>
     <!-- DotGothic16：ドット絵っぽい日本語フォント（Google Fonts・無料で使えるOFLライセンス） -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -119,7 +119,14 @@
       <section id="gameover" class="screen hidden">
         <div class="window panel center">
           <h2 class="bad">ゆうしゃは たおれてしまった…</h2>
-          <p>でも だいじょうぶ。何度でも ちょうせんできるよ。</p>
+          <p>ゲームオーバー。残念無念また来年！<br>次の人と交代してね</p>
+
+          <div class="share-row">
+            <button class="btn small share-x">𝕏 でシェア</button>
+            <button class="btn small share-save">📷 画像で保存</button>
+            <button class="btn small share-img hidden">📤 画像をシェア</button>
+          </div>
+          <p class="note share-note"></p>
           <div id="reviewGameover" class="review"></div>
           <div class="title-row">
             <button id="retryBtn" class="btn">もういちど</button>
@@ -140,6 +147,13 @@
           </form>
           <p id="nameError" class="note bad"></p>
           <ol id="clearRank" class="rank-list"></ol>
+
+          <div class="share-row">
+            <button class="btn small share-x">𝕏 でシェア</button>
+            <button class="btn small share-save">📷 画像で保存</button>
+            <button class="btn small share-img hidden">📤 画像をシェア</button>
+          </div>
+          <p class="note share-note"></p>
           <div id="reviewClear" class="review"></div>
           <div class="title-row">
             <button id="againBtn" class="btn">もういちど</button>
