@@ -29,7 +29,7 @@ const ui = {
   battle: $('battle'), question: $('questionText'), timerBar: $('timerBar'), timerText: $('timerText'),
   choices: [...document.querySelectorAll('.choice')],
   message: $('message'), messageText: $('messageText'), messageNext: $('messageNext'), messageHead: $('messageHead'),
-  dpad: $('dpad'), slash: $('slash'), popups: $('popups'), fade: $('fade'),
+  dpad: $('stick'), slash: $('slash'), popups: $('popups'), fade: $('fade'),
   screens: {
     title: $('title'), grade: $('grade'), how: $('how'), ranking: $('rankingScreen'), gameover: $('gameover'), clear: $('clear'),
   },
@@ -92,7 +92,7 @@ const cam = {
 };
 
 // =====================================================
-// 入力（キーボード・十字ボタン）
+// 入力（キーボード・スティック）
 // =====================================================
 const held = new Set(); // 押されている方向
 let tapped = null; // さっと押してすぐはなした方向も、1歩ぶんは覚えておく
@@ -160,23 +160,68 @@ function menuKey(e) {
   }
 }
 
-// 十字ボタン（おしっぱなしで歩きつづける）
-for (const btn of ui.dpad.querySelectorAll('button')) {
-  const dir = btn.dataset.dir;
-  const on = (e) => {
+// スマホ用のスティック（たおした方向に歩きつづける）
+{
+  const stick = ui.dpad;
+  const knob = stick.querySelector('.stick-knob');
+  let pointerId = null;
+  let stickDir = null; // 今スティックでえらんでいる方向
+
+  const setDir = (dir) => {
+    if (dir === stickDir) return;
+    if (stickDir) held.delete(stickDir);
+    stickDir = dir;
+    if (dir) {
+      held.add(dir);
+      tapped = dir;
+      state.path = []; // スティックを使ったら、タップで歩く道順はやめる
+    }
+  };
+
+  const move = (e) => {
+    const r = stick.getBoundingClientRect();
+    const radius = r.width / 2;
+    let dx = e.clientX - (r.left + radius);
+    let dy = e.clientY - (r.top + radius);
+    const dist = Math.hypot(dx, dy);
+    // つまみ（ノブ）が丸の外に出ないようにする
+    const max = radius * 0.6;
+    if (dist > max) {
+      dx = (dx / dist) * max;
+      dy = (dy / dist) * max;
+    }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    // 少しだけたおしたときは動かない（あそび）
+    if (dist < radius * 0.22) return setDir(null);
+    // マス目の移動なので、たて・よこ のうち大きいほうへ
+    // （今の方向を少しだけ優先して、ななめでガタガタ切りかわらないようにする）
+    const ax = Math.abs(dx) * (stickDir === 'left' || stickDir === 'right' ? 1.25 : 1);
+    const ay = Math.abs(dy) * (stickDir === 'up' || stickDir === 'down' ? 1.25 : 1);
+    setDir(ax > ay ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
+  };
+
+  const end = () => {
+    pointerId = null;
+    stick.classList.remove('active');
+    knob.style.transform = '';
+    setDir(null);
+  };
+
+  stick.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    held.add(dir);
-    tapped = dir;
-    btn.classList.add('on');
-  };
-  const off = () => {
-    held.delete(dir);
-    btn.classList.remove('on');
-  };
-  btn.addEventListener('pointerdown', on);
-  btn.addEventListener('pointerup', off);
-  btn.addEventListener('pointerleave', off);
-  btn.addEventListener('pointercancel', off);
+    pointerId = e.pointerId;
+    try {
+      stick.setPointerCapture(e.pointerId); // 指が丸の外に出ても追いかける
+    } catch {
+      /* 使えない環境でも、スティックは動く */
+    }
+    stick.classList.add('active');
+    move(e);
+  });
+  stick.addEventListener('pointermove', (e) => e.pointerId === pointerId && move(e));
+  stick.addEventListener('pointerup', end);
+  stick.addEventListener('pointercancel', end);
+  stick.addEventListener('lostpointercapture', end);
 }
 let touchUsed = isMobile;
 addEventListener('touchstart', () => (touchUsed = true), { once: true, passive: true });
@@ -612,7 +657,7 @@ async function startGame(level) {
   await say('ここは かずの森。\n森のおくの遺跡に 「むげんの魔王」が いるらしい…', { wait: true });
   await say(
     touchUsed
-      ? '十字ボタンか、地面を タップして 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
+      ? '左下の スティックか、地面を タップして 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
       : '矢印キーか、地面を クリックして 歩こう。\nモンスターに ぶつかると バトルが はじまるよ！'
   );
   state.mode = 'field';

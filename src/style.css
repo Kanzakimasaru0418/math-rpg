@@ -399,38 +399,50 @@ body.playing .icon-btn {
   }
 }
 
-/* ---------- 十字ボタン ---------- */
-#dpad {
+/* ---------- スマホ用のスティック ---------- */
+#stick {
   position: fixed;
-  left: max(14px, env(safe-area-inset-left));
-  bottom: max(14px, env(safe-area-inset-bottom));
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
   width: 9.5em;
   height: 9.5em;
-  display: grid;
-  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   z-index: 20;
-  opacity: 0.85;
+  touch-action: none;
 }
-#dpad button {
-  background: rgba(10, 10, 30, 0.6);
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 10px;
-  font-size: 1.1em;
+.stick-base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(20, 20, 50, 0.35), rgba(10, 10, 30, 0.6));
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), inset 0 0 16px rgba(0, 0, 0, 0.5);
 }
-#dpad button.on {
-  background: rgba(255, 213, 79, 0.5);
+/* 上下左右の小さな目印 */
+.stick-base::before {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.25);
 }
-#dpad [data-dir='up'] {
-  grid-area: 1 / 2;
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: 42%;
+  margin: -21% 0 0 -21%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6d0, #ffd54f 45%, #c08a1a);
+  border: 3px solid #000;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease-out;
 }
-#dpad [data-dir='left'] {
-  grid-area: 2 / 1;
+#stick.active .stick-knob {
+  transition: none;
 }
-#dpad [data-dir='right'] {
-  grid-area: 2 / 3;
-}
-#dpad [data-dir='down'] {
-  grid-area: 3 / 2;
+#stick.active .stick-base {
+  border-color: var(--gold);
 }
 
 /* ---------- 画面（タイトルなど） ---------- */
