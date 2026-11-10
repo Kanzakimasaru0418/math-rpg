@@ -141,7 +141,8 @@ export const HERO_FRAMES = {
   ],
 };
 
-// 弱い敵「カズダマ」（ひとつ目のまるいモンスター）
+// 弱い敵（ひとつ目のまるいモンスター）
+// 名前は + − × ÷ ＝ の記号から：プラスン・マイナスン・カケルン・ワルン・イコルン
 export const PUCHI = [
   '................',
   '.......kk.......',
@@ -161,7 +162,8 @@ export const PUCHI = [
   '.....kkkkkk.....',
 ];
 
-// ふつうの敵「シグマバット」（こうもり型）
+// ふつうの敵（こうもり型）
+// 名前は √・ベクトル・π から：ルートバット・ベクトルバット・パイバット
 export const BAT = [
   '................',
   '................',
@@ -255,16 +257,16 @@ export const CHEST_PALETTE = {
 
 // 敵の色ちがい（パレットスワップ：色だけ入れかえて別の敵にする方法）
 export const PUCHI_COLORS = [
-  { name: 'カズダマ', o: '#f08a24', O: '#b85a10', y: '#ffd27a' },
-  { name: 'ミドリダマ', o: '#4cc25a', O: '#2a7f36', y: '#b8f0a0' },
-  { name: 'アオダマ', o: '#3d8ef0', O: '#1f55a8', y: '#a8d4ff' },
-  { name: 'モモダマ', o: '#f06aa8', O: '#a8326c', y: '#ffc4e0' },
-  { name: 'キンダマ', o: '#f0c834', O: '#a8861a', y: '#fff3a8' },
+  { name: 'プラスン', o: '#f08a24', O: '#b85a10', y: '#ffd27a' },
+  { name: 'マイナスン', o: '#4cc25a', O: '#2a7f36', y: '#b8f0a0' },
+  { name: 'カケルン', o: '#3d8ef0', O: '#1f55a8', y: '#a8d4ff' },
+  { name: 'ワルン', o: '#f06aa8', O: '#a8326c', y: '#ffc4e0' },
+  { name: 'イコルン', o: '#f0c834', O: '#a8861a', y: '#fff3a8' },
 ].map((c) => ({ name: c.name, palette: { ...BASE, ...c, m: '#7a1f2c' } }));
 
 export const BAT_COLORS = [
-  { name: 'シグマバット', p: '#8a5ad0', P: '#4b2a80', l: '#c9a8f5' },
-  { name: 'デルタバット', p: '#2fb5a8', P: '#17665e', l: '#9df0e6' },
+  { name: 'ルートバット', p: '#8a5ad0', P: '#4b2a80', l: '#c9a8f5' },
+  { name: 'ベクトルバット', p: '#2fb5a8', P: '#17665e', l: '#9df0e6' },
   { name: 'パイバット', p: '#d04a5a', P: '#7a1f2c', l: '#f5a8b0' },
 ].map((c) => ({ name: c.name, palette: { ...BASE, ...c, r: '#ffe14a' } }));
 
