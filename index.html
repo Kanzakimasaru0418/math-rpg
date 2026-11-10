@@ -29,6 +29,18 @@
         </div>
       </div>
       <button id="muteBtn" class="icon-btn" aria-label="音のオン・オフ">♪</button>
+      <button id="retireBtn" class="retire-btn hidden" aria-label="リタイア">🏳 リタイア</button>
+
+      <!-- リタイアの確認 -->
+      <div id="retireDialog" class="dialog-back hidden">
+        <div class="window dialog">
+          <p>ほんとうに リタイアしますか？</p>
+          <div class="title-row">
+            <button id="retireYes" class="btn">はい</button>
+            <button id="retireNo" class="btn">いいえ</button>
+          </div>
+        </div>
+      </div>
 
       <!-- ===== バトル ===== -->
       <div id="enemyInfo" class="hidden">
@@ -118,13 +130,12 @@
 
       <section id="gameover" class="screen hidden">
         <div class="window panel center">
-          <h2 class="bad">ゆうしゃは たおれてしまった…</h2>
-          <p>ゲームオーバー。残念無念また来年！<br>次の人と交代してね</p>
+          <h2 id="gameoverTitle" class="bad">ゆうしゃは たおれてしまった…</h2>
+          <p id="gameoverText">ゲームオーバー。残念無念また来年！<br>次の人と交代してね</p>
 
           <div class="share-row">
             <button class="btn small share-x">𝕏 でシェア</button>
             <button class="btn small share-save">📷 画像で保存</button>
-            <button class="btn small share-img hidden">📤 画像をシェア</button>
           </div>
           <p class="note share-note"></p>
           <div id="reviewGameover" class="review"></div>
@@ -151,7 +162,6 @@
           <div class="share-row">
             <button class="btn small share-x">𝕏 でシェア</button>
             <button class="btn small share-save">📷 画像で保存</button>
-            <button class="btn small share-img hidden">📤 画像をシェア</button>
           </div>
           <p class="note share-note"></p>
           <div id="reviewClear" class="review"></div>

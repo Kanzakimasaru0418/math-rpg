@@ -94,7 +94,7 @@ export async function makeResultImage(sceneDataUrl, r) {
   // クリア or ゲームオーバー
   ctx.font = `60px ${FONT}`;
   ctx.fillStyle = r.cleared ? '#7ee08a' : '#ff7b7b';
-  ctx.fillText(r.cleared ? 'GAME CLEAR!' : 'ゲームオーバー', left, wy + 170);
+  ctx.fillText(r.cleared ? 'GAME CLEAR!' : r.retired ? 'リタイア' : 'ゲームオーバー', left, wy + 170);
 
   // 学年のバッジ
   ctx.font = `26px ${FONT}`;
@@ -177,12 +177,14 @@ export function canShareImage() {
   }
 }
 
+// 共有メニューで画像を送る
+// 結果：'shared'（送れた）／'cancel'（とちゅうでやめた）／'error'（使えなかった）
 export async function shareImage(blob, filename, text) {
   const file = new File([blob], filename, { type: 'image/png' });
   try {
     await navigator.share({ files: [file], text });
-    return true;
-  } catch {
-    return false; // とちゅうでやめたとき など
+    return 'shared';
+  } catch (e) {
+    return e?.name === 'AbortError' ? 'cancel' : 'error';
   }
 }

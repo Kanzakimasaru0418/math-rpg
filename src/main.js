@@ -329,11 +329,12 @@ async function explain(q) {
 }
 
 // まちがえた問題の一覧（タップ・Enter で解説がひらく）
-function renderReview(el) {
+function renderReview(el, cleared = false) {
   el.innerHTML = '';
   const h = document.createElement('h3');
   if (state.missed.length === 0) {
-    h.textContent = 'まちがえた問題は ありませんでした！ すごい！';
+    // ほめるのはクリアしたときだけ
+    h.textContent = cleared ? 'まちがえた問題は ありませんでした！ すごい！' : 'まちがえた問題は ありません';
     el.appendChild(h);
     return;
   }
@@ -589,6 +590,9 @@ async function startGame(level) {
   state.kills = 0;
   state.moving = false;
   state.missed = [];
+  state.asking = false;
+  state.pauseQuestion = null;
+  state.abortQuestion = null;
   clearInput();
   world.reset();
   setBattleView(false);
@@ -806,9 +810,27 @@ function askQuestion(q, limitSec) {
     const start = performance.now();
     const limit = limitSec * 1000;
     let lastSec = limitSec;
+    let pausedMs = 0; // リタイアの確認中など、止めていた時間
+    let pausedAt = null;
+    state.asking = true;
+    // リタイアの確認中は時間を止める
+    state.pauseQuestion = (on) => {
+      if (on && pausedAt === null) pausedAt = performance.now();
+      if (!on && pausedAt !== null) {
+        pausedMs += performance.now() - pausedAt;
+        pausedAt = null;
+      }
+    };
+    // リタイアしたときに、問題をとちゅうでやめる
+    state.abortQuestion = () => {
+      answered = true;
+      state.asking = false;
+      ui.battle.classList.add('hidden');
+    };
     const tick = () => {
       if (answered) return;
-      const left = Math.max(0, limit - (performance.now() - start));
+      if (pausedAt !== null) return requestAnimationFrame(tick);
+      const left = Math.max(0, limit - (performance.now() - start - pausedMs));
       ui.timerBar.style.width = `${(left / limit) * 100}%`;
       ui.timerBar.classList.toggle('hurry', left < 5000);
       const sec = Math.ceil(left / 1000);
@@ -835,6 +857,7 @@ function askQuestion(q, limitSec) {
     }
     async function finish(i) {
       answered = true;
+      state.asking = false;
       keyHandler = null;
       const ok = i === q.correctIndex;
       if (!ok) state.missed.push({ ...q, mine: i >= 0 ? q.choices[i] : '時間切れ' });
@@ -1002,13 +1025,16 @@ function makeResult(cleared) {
     url: location.origin + '/',
     scene: captureScene(),
   };
-  result.imagePromise = null; // 画像は、ボタンが押されてから作る
+  // 結果カードの画像を先に作っておく（ボタンを押したらすぐシェアできるように）
+  result.imagePromise = makeResultImage(result.scene, result);
 }
 
 function shareText(r) {
   return r.cleared
     ? `数学RPG【${r.gradeLabel}】をクリア！\nクリアタイム ${r.time}／まちがい ${r.missed}問${r.missed === 0 ? '（ノーミス！）' : ''}\nきみは魔王をたおせるかな？`
-    : `数学RPG【${r.gradeLabel}】で ${r.kills}体のモンスターをたおした！\nつぎこそ 魔王をたおすぞ…！`;
+    : r.retired
+      ? `数学RPG【${r.gradeLabel}】に ちょうせん！ ${r.kills}体のモンスターをたおした！\nつぎこそ 魔王をたおすぞ…！`
+      : `数学RPG【${r.gradeLabel}】で ${r.kills}体のモンスターをたおした！\nつぎこそ 魔王をたおすぞ…！`;
 }
 
 function resultImage() {
@@ -1017,11 +1043,23 @@ function resultImage() {
 }
 const fileName = () => `mathrpg-${result.cleared ? 'clear' : 'result'}-${Date.now()}.png`;
 
+// 「𝕏 でシェア」
+//  ・スマホなど画像を共有できる端末 → 共有メニューで X をえらぶと、画像つきで投稿できる
+//  ・できないパソコン → 画像を保存してから X の投稿画面をひらく（画像は自分で追加）
+const imageShareOk = canShareImage();
 document.querySelectorAll('.share-x').forEach((b) =>
-  b.addEventListener('click', () => {
+  b.addEventListener('click', async () => {
     if (!result) return;
     sfx.confirm();
+    const note = b.closest('.panel').querySelector('.share-note');
+    const blob = await resultImage();
+    if (imageShareOk) {
+      const r = await shareImage(blob, fileName(), `${shareText(result)}\n${result.url}\n#数学RPG`);
+      if (r !== 'error') return; // 送れた・やめた ときはここでおしまい
+    }
+    saveImage(blob, fileName());
     shareToX(shareText(result), result.url);
+    note.textContent = '結果の画像を 保存したよ。Xの画面で 画像を追加してね！';
   })
 );
 document.querySelectorAll('.share-save').forEach((b) =>
@@ -1035,16 +1073,6 @@ document.querySelectorAll('.share-save').forEach((b) =>
     note.textContent = '画像を 保存したよ！（ダウンロードフォルダを 見てね）';
   })
 );
-const imageShareOk = canShareImage();
-document.querySelectorAll('.share-img').forEach((b) => {
-  b.classList.toggle('hidden', !imageShareOk); // スマホなど、使えるときだけ出す
-  b.addEventListener('click', async () => {
-    if (!result) return;
-    sfx.confirm();
-    const blob = await resultImage();
-    await shareImage(blob, fileName(), shareText(result) + '\n' + result.url);
-  });
-});
 function resetShareNotes() {
   document.querySelectorAll('.share-note').forEach((n) => (n.textContent = ''));
 }
@@ -1062,9 +1090,90 @@ async function gameOver() {
   await wait(300);
   makeResult(false);
   resetShareNotes();
+  setGameoverText(false);
   renderReview($('reviewGameover'));
   showScreen('gameover', $('retryBtn'));
 }
+
+// =====================================================
+// リタイア
+// =====================================================
+const retireBtn = $('retireBtn');
+const retireDialog = $('retireDialog');
+const GAMEOVER_HTML = { title: $('gameoverTitle').innerHTML, text: $('gameoverText').innerHTML };
+
+function setGameoverText(retired) {
+  $('gameoverTitle').innerHTML = retired ? 'リタイアしました' : GAMEOVER_HTML.title;
+  $('gameoverText').innerHTML = retired ? 'おつかれさま！ また ちょうせんしてね。' : GAMEOVER_HTML.text;
+}
+
+// リタイアできるのは「フィールドを歩いているとき」と「問題に答えているとき」だけ
+function canRetire() {
+  return retireDialog.classList.contains('hidden') && (state.mode === 'field' || state.asking);
+}
+
+function openRetire() {
+  if (!canRetire()) return;
+  sfx.select();
+  const prevMode = state.mode;
+  const prevKey = keyHandler;
+  if (prevMode === 'field') state.mode = 'busy'; // 確認中は歩けないようにする
+  clearInput();
+  state.pauseQuestion?.(true);
+  retireDialog.classList.remove('hidden');
+  $('retireNo').focus();
+
+  const close = (yes) => {
+    retireDialog.classList.add('hidden');
+    $('retireYes').onclick = $('retireNo').onclick = null;
+    if (yes) return retire();
+    sfx.select();
+    state.mode = prevMode;
+    keyHandler = prevKey;
+    state.pauseQuestion?.(false);
+    document.activeElement?.blur();
+  };
+  $('retireYes').onclick = () => close(true);
+  $('retireNo').onclick = () => close(false);
+  keyHandler = (e) => {
+    if (e.key === 'Escape') {
+      e.stopImmediatePropagation(); // このあとの「Escでリタイア」がまた動かないように
+      close(false);
+    }
+    else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      (document.activeElement === $('retireYes') ? $('retireNo') : $('retireYes')).focus();
+      sfx.select();
+    }
+    // Enter は、えらんでいるボタンがそのまま押される
+  };
+}
+
+function retire() {
+  state.abortQuestion?.();
+  state.asking = false;
+  keyHandler = null;
+  state.mode = 'end';
+  clearInput();
+  showDpad(false);
+  stopBgm();
+  ui.message.classList.add('hidden');
+  ui.enemyInfo.classList.add('hidden');
+  setBattleView(false);
+  state.battleEnemy = null;
+  makeResult(false);
+  result.retired = true;
+  result.imagePromise = makeResultImage(result.scene, result);
+  resetShareNotes();
+  setGameoverText(true);
+  renderReview($('reviewGameover'));
+  showScreen('gameover', $('retryBtn'));
+}
+
+retireBtn.addEventListener('click', openRetire);
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !e.repeat && canRetire() && !activeScreen()) openRetire();
+});
 
 let lastRecord = null;
 function showClear() {
@@ -1075,7 +1184,7 @@ function showClear() {
   resetShareNotes();
   $('clearTime').textContent = formatTime(time);
   $('clearSub').textContent = `${LEVELS[state.level].label} ・ のこりHP ${state.hp} ・ まちがい ${state.missed.length}問`;
-  renderReview($('reviewClear'));
+  renderReview($('reviewClear'), true);
   $('nameError').textContent = '';
   $('nameForm').classList.remove('hidden');
   $('nameInput').value = '';
@@ -1165,6 +1274,8 @@ function loop() {
   const t = clock.elapsedTime;
   tryMove();
   renderer.domElement.classList.toggle('walkable', state.mode === 'field');
+  retireBtn.classList.toggle('hidden', !document.body.classList.contains('playing') || state.mode === 'end');
+  retireBtn.disabled = !canRetire();
   marker.material.opacity = 0.55 + Math.sin(t * 6) * 0.25;
   updateCamera(t, dt);
   world.update(t, dt, camera);
