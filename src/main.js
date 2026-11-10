@@ -223,6 +223,31 @@ function menuKey(e) {
   stick.addEventListener('pointercancel', end);
   stick.addEventListener('lostpointercapture', end);
 }
+// ----- スマホのブラウザが勝手に画面を拡大しないようにする -----
+// 1) 2本指での拡大（iPhone の Safari）
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+// 2) スティックと3Dの画面では、ダブルタップ拡大・長押しメニュー・引っぱりスクロールを止める
+for (const el of [ui.dpad, renderer.domElement]) {
+  for (const type of ['touchstart', 'touchmove']) {
+    el.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+  }
+}
+// 3) それ以外の場所でも、すばやい2回タップ（ダブルタップ拡大）を止める
+let lastTouchEnd = 0;
+document.addEventListener(
+  'touchend',
+  (e) => {
+    const now = performance.now();
+    // ボタンは止めない（すばやく答えを押したときに、押せなくなるのをふせぐ）
+    if (now - lastTouchEnd < 350 && !e.target.closest('button, input, summary')) e.preventDefault();
+    lastTouchEnd = now;
+  },
+  { passive: false }
+);
+document.addEventListener('dblclick', (e) => e.preventDefault());
+
 let touchUsed = isMobile;
 addEventListener('touchstart', () => (touchUsed = true), { once: true, passive: true });
 

@@ -17,6 +17,11 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  /* iPhoneで長押ししたときの「虫めがね」や「コピー」メニューを出さない */
+  -webkit-touch-callout: none;
+}
+canvas {
+  -webkit-user-drag: none;
 }
 
 html,
@@ -761,4 +766,9 @@ body.playing .icon-btn {
 .dialog p {
   margin: 0.2em 0 0.4em;
   font-size: 1.1em;
+}
+
+/* 一覧（ランキング・ふりかえり）は、指でたてにスクロールできるようにする */
+.panel {
+  touch-action: pan-y;
 }
